@@ -1,0 +1,4 @@
+[env]
+VCPKG_ROOT = "C:\\coding\\vcpkg"
+VCPKGRS_TRIPLET = "x64-windows"
+VCPKGRS_DYNAMIC = "1"
