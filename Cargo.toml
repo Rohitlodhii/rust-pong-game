@@ -6,5 +6,5 @@
 [workspace]
 members = [
     "pong_core"
-, "pong_desktop", "pong_web"]
+, "pong_desktop", "pong_server", "pong_web"]
 resolver = "2"

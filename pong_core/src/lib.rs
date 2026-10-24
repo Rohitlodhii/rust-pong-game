@@ -1,13 +1,49 @@
+use serde::{Deserialize, Serialize};
+
 pub const SCREEN_WIDTH: f32 = 800.0;
 pub const SCREEN_HEIGHT: f32 = 600.0;
 pub const PADDLE_WIDTH: f32 = 20.0;
 pub const PADDLE_HEIGHT: f32 = 100.0;
 pub const BALL_SIZE: f32 = 20.0;
-
-// Speeds are now measured in pixels per second
 pub const PADDLE_SPEED: f32 = 450.0;
-pub const INITIAL_BALL_SPEED_X: f32 = 400.0;
-pub const INITIAL_BALL_SPEED_Y: f32 = 250.0;
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AppState {
+    Menu,
+    OfflineGame,
+    OnlineLobby,
+    OnlineGame,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum ClientMessage {
+    CreateRoom,
+    JoinRoom { room_id: String },
+    PlayerInput { up: bool, down: bool },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum ServerMessage {
+    RoomCreated {
+        room_id: String,
+    },
+    JoinedRoom {
+        room_id: String,
+        player_num: u8,
+    },
+    GameStateUpdate {
+        p1_y: f32,
+        p2_y: f32,
+        ball_x: f32,
+        ball_y: f32,
+        p1_score: u32,
+        p2_score: u32,
+        game_started: bool,
+    },
+    Error {
+        message: String,
+    },
+}
 
 pub struct PlayerInput {
     pub p1_up: bool,
@@ -36,21 +72,19 @@ impl GameState {
             p2_y: 220.0,
             ball_x: SCREEN_WIDTH / 2.0 - BALL_SIZE / 2.0,
             ball_y: SCREEN_HEIGHT / 2.0 - BALL_SIZE / 2.0,
-            ball_vel_x: INITIAL_BALL_SPEED_X,
-            ball_vel_y: INITIAL_BALL_SPEED_Y,
+            ball_vel_x: 400.0,
+            ball_vel_y: 250.0,
             p1_score: 0,
             p2_score: 0,
             game_started: false,
         }
     }
 
-    // Now multiplies all movements by dt (delta time)
     pub fn update(&mut self, input: PlayerInput, dt: f32) {
         if input.space && !self.game_started {
             self.game_started = true;
         }
 
-        // Paddle inputs scaled by dt
         if input.p1_up {
             self.p1_y -= PADDLE_SPEED * dt;
         }
@@ -73,11 +107,9 @@ impl GameState {
             return;
         }
 
-        // Move ball scaled by dt
         self.ball_x += self.ball_vel_x * dt;
         self.ball_y += self.ball_vel_y * dt;
 
-        // Top/Bottom wall bounce
         if self.ball_y <= 0.0 {
             self.ball_y = 0.0;
             self.ball_vel_y = -self.ball_vel_y;
@@ -86,30 +118,25 @@ impl GameState {
             self.ball_vel_y = -self.ball_vel_y;
         }
 
-        // Collision bounds
-        let p1_left = 30.0;
         let p1_right = 30.0 + PADDLE_WIDTH;
-        let p1_top = self.p1_y;
-        let p1_bottom = self.p1_y + PADDLE_HEIGHT;
-
         let p2_left = SCREEN_WIDTH - 30.0 - PADDLE_WIDTH;
-        let p2_right = SCREEN_WIDTH - 30.0;
-        let p2_top = self.p2_y;
-        let p2_bottom = self.p2_y + PADDLE_HEIGHT;
 
-        let b_left = self.ball_x;
-        let b_right = self.ball_x + BALL_SIZE;
-        let b_top = self.ball_y;
-        let b_bottom = self.ball_y + BALL_SIZE;
-
-        // Player 1 collision
-        if b_left < p1_right && b_right > p1_left && b_top < p1_bottom && b_bottom > p1_top {
+        // P1 Collision
+        if self.ball_x <= p1_right
+            && self.ball_x >= 30.0
+            && self.ball_y + BALL_SIZE >= self.p1_y
+            && self.ball_y <= self.p1_y + PADDLE_HEIGHT
+        {
             self.ball_vel_x = -self.ball_vel_x;
             self.ball_x = p1_right;
         }
 
-        // Player 2 collision
-        if b_left < p2_right && b_right > p2_left && b_top < p2_bottom && b_bottom > p2_top {
+        // P2 Collision
+        if self.ball_x + BALL_SIZE >= p2_left
+            && self.ball_x <= SCREEN_WIDTH - 30.0
+            && self.ball_y + BALL_SIZE >= self.p2_y
+            && self.ball_y <= self.p2_y + PADDLE_HEIGHT
+        {
             self.ball_vel_x = -self.ball_vel_x;
             self.ball_x = p2_left - BALL_SIZE;
         }
@@ -118,11 +145,45 @@ impl GameState {
         if self.ball_x < 0.0 {
             self.p2_score += 1;
             self.game_started = false;
-            self.ball_vel_x = INITIAL_BALL_SPEED_X;
+            self.ball_vel_x = 400.0;
         } else if self.ball_x > SCREEN_WIDTH {
             self.p1_score += 1;
             self.game_started = false;
-            self.ball_vel_x = -INITIAL_BALL_SPEED_X;
+            self.ball_vel_x = -400.0;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_client_messages() {
+        let msg_create: Result<ClientMessage, _> = serde_json::from_str("\"CreateRoom\"");
+        assert_eq!(msg_create.unwrap(), ClientMessage::CreateRoom);
+
+        let msg_create_null: Result<ClientMessage, _> =
+            serde_json::from_str("{\"CreateRoom\":null}");
+        println!("CreateRoom null result: {:?}", msg_create_null);
+
+        let msg_join: ClientMessage =
+            serde_json::from_str("{\"JoinRoom\":{\"room_id\":\"ABCD\"}}").unwrap();
+        assert_eq!(
+            msg_join,
+            ClientMessage::JoinRoom {
+                room_id: "ABCD".into()
+            }
+        );
+
+        let msg_input: ClientMessage =
+            serde_json::from_str("{\"PlayerInput\":{\"up\":true,\"down\":false}}").unwrap();
+        assert_eq!(
+            msg_input,
+            ClientMessage::PlayerInput {
+                up: true,
+                down: false
+            }
+        );
     }
 }

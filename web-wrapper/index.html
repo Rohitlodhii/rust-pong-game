@@ -13,47 +13,462 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
         }
-        h3 {
-            margin-bottom: 10px;
-            font-weight: 400;
-            color: #aaa;
+        .screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .hidden {
+            display: none !important;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        button {
+            background-color: #ffffff;
+            color: #121212;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            transition: 0.2s;
+        }
+        button:hover {
+            background-color: #cccccc;
+            transform: scale(1.05);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        input {
+            padding: 12px;
+            font-size: 1.1rem;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #222;
+            color: white;
+            text-align: center;
+            margin: 10px;
+            outline: none;
+        }
+        #game-container {
+            position: relative;
         }
         canvas {
             border: 2px solid white;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
-            outline: none; /* Removes the ugly blue focus ring */
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+            outline: none;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            font-size: 1.5rem;
+            font-weight: bold;
+            pointer-events: none;
+        }
+
+        /* Server Status Pill (Top-Right) */
+        .status-pill {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-online {
+            background-color: rgba(16, 185, 129, 0.15);
+            border: 1px solid #10b981;
+            color: #10b981;
+        }
+        .status-online .status-dot {
+            background-color: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+        .status-offline {
+            background-color: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+        .status-offline .status-dot {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+        .status-checking {
+            background-color: rgba(245, 158, 11, 0.15);
+            border: 1px solid #f59e0b;
+            color: #f59e0b;
+        }
+        .status-checking .status-dot {
+            background-color: #f59e0b;
+        }
+
+        /* Server Offline Warning Banner */
+        .server-warning-box {
+            background-color: rgba(239, 68, 68, 0.12);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 12px 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            margin: 15px auto;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .server-warning-box code {
+            background-color: #222;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #facc15;
+            font-family: Consolas, monospace;
         }
     </style>
 </head>
 <body>
-    <h3>Use W/S and Up/Down arrows to play</h3>
 
-    <!-- Added tabindex="0" so the canvas can accept keyboard events -->
-    <canvas id="glcanvas" width="800" height="600" tabindex="0"></canvas>
+    <!-- SERVER HEALTH STATUS INDICATOR (ALWAYS VISIBLE) -->
+    <div id="server-status-pill" class="status-pill status-checking">
+        <span class="status-dot"></span>
+        <span id="status-label">Checking Server...</span>
+    </div>
+
+    <!-- SCREEN 1: MAIN MENU -->
+    <div id="main-menu" class="screen">
+        <h1>RUST PONG</h1>
+        <p style="color: #888; margin-bottom: 25px;">Choose your game mode</p>
+        
+        <div id="main-menu-warning" class="server-warning-box hidden">
+            ⚠️ <strong>Multiplayer Server Offline</strong><br>
+            Server is not ready on <code>ws://127.0.0.1:8080</code>.<br>
+            Run <code>cargo run -p pong_server</code> to enable online rooms.<br>
+            <em>Offline mode is ready to play!</em>
+        </div>
+
+        <button onclick="startOfflineMode()">Play Offline (Single / Local)</button>
+        <button id="online-btn" onclick="showOnlineLobby()" style="background-color: #3b82f6; color: white;">Online Multiplayer</button>
+    </div>
+
+    <!-- SCREEN 2: ONLINE LOBBY -->
+    <div id="online-lobby" class="screen hidden">
+        <h1>MULTIPLAYER LOBBY</h1>
+
+        <div id="lobby-warning" class="server-warning-box hidden">
+            ⚠️ <strong>Server Not Ready</strong><br>
+            Multiplayer server is currently down or unreachable at <code>ws://127.0.0.1:8080</code>.<br>
+            Start the server in your terminal with:<br>
+            <code>cargo run -p pong_server</code><br>
+            <button onclick="checkServerHealth()" style="background-color: #444; color: white; padding: 6px 14px; font-size: 0.85rem; margin-top: 8px;">🔄 Retry Connection</button>
+        </div>
+
+        <div id="lobby-controls">
+            <button id="create-room-btn" onclick="createRoom()" style="background-color: #10b981; color: white;">Create Room</button>
+            <br><br>
+            <p style="color: #888;">--- OR JOIN EXISTING ---</p>
+            <input type="text" id="room-code-input" placeholder="ENTER ROOM CODE" maxlength="4" style="text-transform: uppercase;">
+            <br>
+            <button id="join-room-btn" onclick="joinRoom()" style="background-color: #f59e0b; color: white;">Join Room</button>
+        </div>
+        <div id="lobby-status" class="hidden">
+            <h3 id="status-text" style="color: #f59e0b;">Connecting to room...</h3>
+            <p id="room-display-code" style="font-size: 2rem; font-weight: bold; letter-spacing: 4px;"></p>
+        </div>
+        <br>
+        <button onclick="backToMainMenu()" style="background-color: #ef4444; color: white; font-size: 0.9rem; padding: 8px 15px;">Back</button>
+    </div>
+
+    <!-- SCREEN 3: GAME CANVAS -->
+    <div id="game-screen" class="screen hidden">
+        <div id="game-container">
+            <div id="hud">
+                <span id="p1-score">P1: 0</span>
+                <span id="game-status-text">Press SPACE to Start</span>
+                <span id="p2-score">P2: 0</span>
+            </div>
+            <canvas id="glcanvas" width="800" height="600" tabindex="0"></canvas>
+        </div>
+        <br>
+        <button onclick="backToMainMenu()" style="background-color: #333; color: white; font-size: 0.8rem; padding: 6px 12px;">Quit to Menu</button>
+    </div>
 
     <!-- Macroquad JS runtime bundle -->
     <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
 
     <script>
-        // Automatically focus the canvas as soon as the page loads (and re-focus if clicked anywhere)
-        window.addEventListener('load', () => {
-            const canvas = document.getElementById('glcanvas');
-            canvas.focus();
-            window.addEventListener('click', () => canvas.focus());
+        let ws = null;
+        let isOnline = false;
+        let isServerHealthy = false;
+        let playerNum = 0;
+        const pressedKeys = {};
+        let lastSentUp = false;
+        let lastSentDown = false;
+
+        // Register miniquad bridge for pong_web WASM
+        miniquad_add_plugin({
+            register_plugin: function(importObject) {
+                importObject.env.is_online_mode = function() {
+                    return (window.isOnline && window.latestGameState) ? 1 : 0;
+                };
+                importObject.env.get_player_num = function() {
+                    return window.playerNum || 0;
+                };
+                importObject.env.get_online_state = function(outPtr) {
+                    if (!window.latestGameState || !wasm_memory) return 0;
+                    var s = window.latestGameState;
+                    var mem = new Float32Array(wasm_memory.buffer, outPtr, 7);
+                    mem[0] = s.p1_y;
+                    mem[1] = s.p2_y;
+                    mem[2] = s.ball_x;
+                    mem[3] = s.ball_y;
+                    mem[4] = s.p1_score;
+                    mem[5] = s.p2_score;
+                    mem[6] = s.game_started ? 1.0 : 0.0;
+                    return 1;
+                };
+            }
         });
 
-        // Prevent browser default actions (scrolling the page) for game keys
+        // Server Health Check via HTTP endpoint
+        async function checkServerHealth() {
+            const pill = document.getElementById('server-status-pill');
+            const label = document.getElementById('status-label');
+            const mainWarning = document.getElementById('main-menu-warning');
+            const lobbyWarning = document.getElementById('lobby-warning');
+            const createBtn = document.getElementById('create-room-btn');
+            const joinBtn = document.getElementById('join-room-btn');
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1200);
+                const res = await fetch("http://127.0.0.1:8080/health", {
+                    method: "GET",
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    isServerHealthy = true;
+                    pill.className = "status-pill status-online";
+                    label.innerText = "Server: Ready (Online)";
+                    mainWarning.classList.add('hidden');
+                    lobbyWarning.classList.add('hidden');
+                    createBtn.disabled = false;
+                    joinBtn.disabled = false;
+                    return;
+                }
+            } catch (err) {
+                // Server unreachable or timed out
+            }
+
+            isServerHealthy = false;
+            pill.className = "status-pill status-offline";
+            label.innerText = "Server: Offline / Not Ready";
+            mainWarning.classList.remove('hidden');
+            lobbyWarning.classList.remove('hidden');
+            createBtn.disabled = true;
+            joinBtn.disabled = true;
+        }
+
+        // Poll server health on load and every 3 seconds
+        checkServerHealth();
+        setInterval(checkServerHealth, 3000);
+
+        function showScreen(screenId) {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById('online-lobby').classList.add('hidden');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        function startOfflineMode() {
+            isOnline = false;
+            window.isOnline = false;
+            window.gameMode = "offline";
+            window.latestGameState = null;
+            showScreen('game-screen');
+            document.getElementById('glcanvas').focus();
+            loadGameWasm();
+        }
+
+        function showOnlineLobby() {
+            checkServerHealth();
+            showScreen('online-lobby');
+            document.getElementById('lobby-controls').classList.remove('hidden');
+            document.getElementById('lobby-status').classList.add('hidden');
+        }
+
+        function backToMainMenu() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            isOnline = false;
+            window.isOnline = false;
+            window.gameMode = "offline";
+            window.latestGameState = null;
+            window.playerNum = 0;
+            lastSentUp = false;
+            lastSentDown = false;
+            for (let k in pressedKeys) delete pressedKeys[k];
+            showScreen('main-menu');
+        }
+
+        function checkAndSendInput() {
+            if (!isOnline || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+            let up = false;
+            let down = false;
+
+            if (pressedKeys['KeyW'] || pressedKeys['ArrowUp']) {
+                up = true;
+            }
+            if (pressedKeys['KeyS'] || pressedKeys['ArrowDown']) {
+                down = true;
+            }
+
+            if (up !== lastSentUp || down !== lastSentDown) {
+                lastSentUp = up;
+                lastSentDown = down;
+                ws.send(JSON.stringify({ PlayerInput: { up: up, down: down } }));
+            }
+        }
+
+        function connectWebSocket(callback) {
+            if (!isServerHealthy) {
+                alert("Multiplayer server is not ready! Please start it with:\ncargo run -p pong_server");
+                return;
+            }
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                callback();
+                return;
+            }
+            ws = new WebSocket("ws://127.0.0.1:8080");
+            ws.onopen = () => callback();
+            ws.onmessage = (event) => handleServerMessage(JSON.parse(event.data));
+            ws.onerror = (err) => {
+                checkServerHealth();
+                alert("Could not connect to multiplayer server. Please make sure `pong_server` is running!");
+            };
+            ws.onclose = () => {
+                if (isOnline) {
+                    alert("Disconnected from server.");
+                    backToMainMenu();
+                }
+            };
+        }
+
+        function createRoom() {
+            connectWebSocket(() => {
+                ws.send(JSON.stringify({ CreateRoom: null }));
+                document.getElementById('lobby-controls').classList.add('hidden');
+                document.getElementById('lobby-status').classList.remove('hidden');
+                document.getElementById('status-text').innerText = "Share this code with Player 2:";
+            });
+        }
+
+        function joinRoom() {
+            const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+            if (code.length !== 4) {
+                alert("Please enter a valid 4-character room code.");
+                return;
+            }
+            connectWebSocket(() => {
+                ws.send(JSON.stringify({ JoinRoom: { room_id: code } }));
+                document.getElementById('lobby-controls').classList.add('hidden');
+                document.getElementById('lobby-status').classList.remove('hidden');
+                document.getElementById('status-text').innerText = "Joining room...";
+            });
+        }
+
+        function handleServerMessage(msg) {
+            if (msg.RoomCreated) {
+                document.getElementById('room-display-code').innerText = msg.RoomCreated.room_id;
+                document.getElementById('status-text').innerText = "Waiting for Player 2 to join...";
+                playerNum = 1;
+            } else if (msg.JoinedRoom) {
+                playerNum = msg.JoinedRoom.player_num;
+                // Transition from lobby to game screen once both players are connected
+                isOnline = true;
+                window.isOnline = true;
+                window.gameMode = "online";
+                window.playerNum = playerNum;
+                showScreen('game-screen');
+                document.getElementById('glcanvas').focus();
+                loadGameWasm();
+            } else if (msg.GameStateUpdate) {
+                // Pass game state to global window object so Rust/WASM can read it
+                window.latestGameState = msg.GameStateUpdate;
+
+                // Update HTML HUD scores live
+                document.getElementById('p1-score').innerText = `P1: ${msg.GameStateUpdate.p1_score}`;
+                document.getElementById('p2-score').innerText = `P2: ${msg.GameStateUpdate.p2_score}`;
+                document.getElementById('game-status-text').innerText = msg.GameStateUpdate.game_started ? "Playing" : "Get Ready...";
+            } else if (msg.Error) {
+                alert(msg.Error.message);
+                if (isOnline) {
+                    backToMainMenu();
+                } else {
+                    showOnlineLobby();
+                }
+            }
+        }
+
+        // Capture keyboard events in capture phase
         window.addEventListener("keydown", function(e) {
-            if (["Space", "ArrowUp", "ArrowDown", " "].includes(e.code) || e.key === " ") {
+            if (["Space", "ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(e.code)) {
                 e.preventDefault();
             }
-        }, false);
+            if (!pressedKeys[e.code]) {
+                pressedKeys[e.code] = true;
+                checkAndSendInput();
+            }
+        }, true);
 
-        // Load your compiled WASM game
-        load("pong_web.wasm");
+        window.addEventListener("keyup", function(e) {
+            if (["Space", "ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(e.code)) {
+                e.preventDefault();
+            }
+            if (pressedKeys[e.code]) {
+                pressedKeys[e.code] = false;
+                checkAndSendInput();
+            }
+        }, true);
+
+        let wasmLoaded = false;
+        function loadGameWasm() {
+            if (wasmLoaded) return;
+            wasmLoaded = true;
+            load("pong_web.wasm");
+        }
     </script>
 </body>
 </html>

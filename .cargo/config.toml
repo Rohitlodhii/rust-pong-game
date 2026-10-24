@@ -2,3 +2,6 @@
 VCPKG_ROOT = "C:\\coding\\vcpkg"
 VCPKGRS_TRIPLET = "x64-windows"
 VCPKGRS_DYNAMIC = "1"
+
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=--import-undefined"]
