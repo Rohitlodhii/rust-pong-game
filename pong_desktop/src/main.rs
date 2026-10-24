@@ -52,7 +52,8 @@ fn main() -> Result<(), String> {
         };
 
         // Update core physics
-        state.update(input);
+        let dt = 1.0 / 60.0;
+        state.update(input, dt);
 
         // Update title bar score
         let title = format!(

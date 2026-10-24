@@ -3,7 +3,11 @@ pub const SCREEN_HEIGHT: f32 = 600.0;
 pub const PADDLE_WIDTH: f32 = 20.0;
 pub const PADDLE_HEIGHT: f32 = 100.0;
 pub const BALL_SIZE: f32 = 20.0;
-pub const PADDLE_SPEED: f32 = 6.0;
+
+// Speeds are now measured in pixels per second
+pub const PADDLE_SPEED: f32 = 450.0;
+pub const INITIAL_BALL_SPEED_X: f32 = 400.0;
+pub const INITIAL_BALL_SPEED_Y: f32 = 250.0;
 
 pub struct PlayerInput {
     pub p1_up: bool,
@@ -32,27 +36,34 @@ impl GameState {
             p2_y: 220.0,
             ball_x: SCREEN_WIDTH / 2.0 - BALL_SIZE / 2.0,
             ball_y: SCREEN_HEIGHT / 2.0 - BALL_SIZE / 2.0,
-            ball_vel_x: 5.0,
-            ball_vel_y: 3.0,
+            ball_vel_x: INITIAL_BALL_SPEED_X,
+            ball_vel_y: INITIAL_BALL_SPEED_Y,
             p1_score: 0,
             p2_score: 0,
             game_started: false,
         }
     }
 
-    pub fn update(&mut self, input: PlayerInput) {
-        // Start game round on Space
+    // Now multiplies all movements by dt (delta time)
+    pub fn update(&mut self, input: PlayerInput, dt: f32) {
         if input.space && !self.game_started {
             self.game_started = true;
         }
 
-        // Paddle inputs
-        if input.p1_up { self.p1_y -= PADDLE_SPEED; }
-        if input.p1_down { self.p1_y += PADDLE_SPEED; }
-        if input.p2_up { self.p2_y -= PADDLE_SPEED; }
-        if input.p2_down { self.p2_y += PADDLE_SPEED; }
+        // Paddle inputs scaled by dt
+        if input.p1_up {
+            self.p1_y -= PADDLE_SPEED * dt;
+        }
+        if input.p1_down {
+            self.p1_y += PADDLE_SPEED * dt;
+        }
+        if input.p2_up {
+            self.p2_y -= PADDLE_SPEED * dt;
+        }
+        if input.p2_down {
+            self.p2_y += PADDLE_SPEED * dt;
+        }
 
-        // Clamp paddles
         self.p1_y = self.p1_y.clamp(0.0, SCREEN_HEIGHT - PADDLE_HEIGHT);
         self.p2_y = self.p2_y.clamp(0.0, SCREEN_HEIGHT - PADDLE_HEIGHT);
 
@@ -62,9 +73,9 @@ impl GameState {
             return;
         }
 
-        // Move ball
-        self.ball_x += self.ball_vel_x;
-        self.ball_y += self.ball_vel_y;
+        // Move ball scaled by dt
+        self.ball_x += self.ball_vel_x * dt;
+        self.ball_y += self.ball_vel_y * dt;
 
         // Top/Bottom wall bounce
         if self.ball_y <= 0.0 {
@@ -107,11 +118,11 @@ impl GameState {
         if self.ball_x < 0.0 {
             self.p2_score += 1;
             self.game_started = false;
-            self.ball_vel_x = self.ball_vel_x.abs();
+            self.ball_vel_x = INITIAL_BALL_SPEED_X;
         } else if self.ball_x > SCREEN_WIDTH {
             self.p1_score += 1;
             self.game_started = false;
-            self.ball_vel_x = -self.ball_vel_x.abs();
+            self.ball_vel_x = -INITIAL_BALL_SPEED_X;
         }
     }
 }

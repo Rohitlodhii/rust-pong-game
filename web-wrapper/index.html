@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rust Pong Multiplayer</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+        h3 {
+            margin-bottom: 10px;
+            font-weight: 400;
+            color: #aaa;
+        }
+        canvas {
+            border: 2px solid white;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            outline: none; /* Removes the ugly blue focus ring */
+        }
+    </style>
+</head>
+<body>
+    <h3>Use W/S and Up/Down arrows to play</h3>
+
+    <!-- Added tabindex="0" so the canvas can accept keyboard events -->
+    <canvas id="glcanvas" width="800" height="600" tabindex="0"></canvas>
+
+    <!-- Macroquad JS runtime bundle -->
+    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+
+    <script>
+        // Automatically focus the canvas as soon as the page loads (and re-focus if clicked anywhere)
+        window.addEventListener('load', () => {
+            const canvas = document.getElementById('glcanvas');
+            canvas.focus();
+            window.addEventListener('click', () => canvas.focus());
+        });
+
+        // Prevent browser default actions (scrolling the page) for game keys
+        window.addEventListener("keydown", function(e) {
+            if (["Space", "ArrowUp", "ArrowDown", " "].includes(e.code) || e.key === " ") {
+                e.preventDefault();
+            }
+        }, false);
+
+        // Load your compiled WASM game
+        load("pong_web.wasm");
+    </script>
+</body>
+</html>
