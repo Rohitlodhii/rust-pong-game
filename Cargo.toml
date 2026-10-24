@@ -1,7 +1,10 @@
-[package]
-name = "pong-rust"
-version = "0.1.0"
-edition = "2024"
+# [package]
+# name = "pong-rust"
+# version = "0.1.0"
+# edition = "2024"
 
-[dependencies]
-sdl2 = { version = "0.38.0", features = ["use-vcpkg"] }
+[workspace]
+members = [
+    "pong_core"
+, "pong_desktop", "pong_web"]
+resolver = "2"

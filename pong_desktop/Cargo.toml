@@ -1,0 +1,8 @@
+[package]
+name = "pong_desktop"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sdl2 = { version = "0.38.0", features = ["use-vcpkg"] }
+pong_core = { path = "../pong_core"}
